@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HKO Weather Warnings Widget</title>
+    <style>
+        .widget-container {
+            font-family: Arial, sans-serif;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background: #f9f9ff;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .warning-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .warning-icon {
+            width: 40px;
+            height: 40px;
+            margin-right: 10px;
+        }
+        .last-updated {
+            font-size: 0.8em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="widget-container">
+        <h3 style="margin-top:0;">🇭🇰 HKO Warnings</h3>
+        <div id="warnings-container">
+            <p>Loading weather warnings...</p>
+        </div>
+        <p class="last-updated" id="last-updated"></p>
+    </div>
+
+    <script>
+        // Map warning codes to icon URLs
+        const iconMap = {
+            // Tropical Cyclone Signals
+            'TC1': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_01.png',
+            'TC3': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_03.png',
+            'TC8NE': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_08_ne.png',
+            'TC8SE': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_08_se.png',
+            'TC8SW': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_08_sw.png',
+            'TC8NW': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_08_nw.png',
+            'TC9': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_09.png',
+            'TC10': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_10.png',
+            
+            // Rainstorm Warnings
+            'WRAINA': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_09_rain%20amber.png',
+            'WRAINR': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_09_rain%20red.png',
+            'WRAINB': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_09_rain%20black.png',
+            
+            'DEFAULT': 'https://www.hko.gov.hk/images/HKOWarningSymbols/warn800_na.png'
+        };
+
+        // Fetch weather warnings from HKO API
+        async function fetchWarnings() {
+            try {
+                const response = await fetch('https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=warnsum&lang=en');
+                
+                if (!response.ok) {
+                    throw new Error(`API returned status ${response.status}`);
+                }
+
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error fetching warnings:', error);
+                return null;
+            }
+        }
+
+        // Process warnings data and update UI
+        function updateUI(data) {
+            const warningsContainer = document.getElementById('warnings-container');
+            const lastUpdated = document.getElementById('last-updated');
+            
+            if (!data) {
+                warningsContainer.innerHTML = '<p>Error loading weather warnings. Please try again later.</p>';
+                return;
+            }
+
+            const warnings = [];
+
+            // 1. Tropical Cyclone Warning
+            if (data.WTCSGNL && data.WTCSGNL.code !== 'CANCEL') {
+                warnings.push({
+                    name: 'Tropical Cyclone Signal',
+                    code: data.WTCSGNL.code,
+                    type: data.WTCSGNL.type || '',
+                    iconUrl: iconMap[data.WTCSGNL.code] || iconMap['DEFAULT']
+                });
+            }
+
+            // 2. Rainstorm Warning
+            if (data.WRAIN && data.WRAIN.code !== 'CANCEL') {
+                warnings.push({
+                    name: 'Rainstorm Warning',
+                    code: data.WRAIN.code,
+                    type: data.WRAIN.type || '',
+                    iconUrl: iconMap[data.WRAIN.code] || iconMap['DEFAULT']
+                });
+            }
+
+            // Update the UI
+            if (warnings.length === 0) {
+                warningsContainer.innerHTML = '<p>No typhoon or rainstorm warnings in force.</p>';
+            } else {
+                let html = '';
+                warnings.forEach(w => {
+                    html += `
+                        <div class="warning-item">
+                            <img src="${w.iconUrl}" alt="${w.code}" class="warning-icon">
+                            <div>
+                                <strong>${w.name}</strong><br>
+                                ${w.type}
+                            </div>
+                        </div>
+                    `;
+                });
+                warningsContainer.innerHTML = html;
+            }
+
+            // Update last updated time
+            lastUpdated.textContent = `Last updated: ${new Date().toLocaleString('en-HK')}`;
+        }
+
+        // Initialize and refresh every 15 minutes
+        async function init() {
+            const data = await fetchWarnings();
+            updateUI(data);
+            
+            // Refresh every 15 minutes
+            setInterval(async () => {
+                const newData = await fetchWarnings();
+                updateUI(newData);
+            }, 15 * 60 * 1000);
+        }
+
+        // Start the widget
+        init();
+    </script>
+</body>
+</html>
